@@ -82,7 +82,7 @@ class Handler{
                         );
 
                         count.next(); //count() always returns a single row
-                        if(count.getInt(1) > 48){ //~80% of the total
+                        if(count.getInt(1) >= 54){ //~90% of the total
                             statement.executeUpdate(
                                     "INSERT INTO five_minutes_temperature_analytics " +
                                             "SELECT DISTINCT " +
@@ -106,11 +106,11 @@ class Handler{
                             );
 
                             System.out.println(
-                                    "Inserted analytics from " + id + " for [ " + startTime + "; " + endTime + " ]"
+                                    "Inserted analytics from " + id + " for [ " + startTime + "; " + endTime + " ] (5 min)"
                             );
                         } else{
                             System.out.println(
-                                    "Not enough data from " + id + " for [ " + startTime + "; " + endTime + " ]"
+                                    "Not enough data from " + id + " for [ " + startTime + "; " + endTime + " ] (5 min)"
                             );
                         }
 
@@ -121,7 +121,7 @@ class Handler{
                         );
 
                         System.out.println(
-                                "Deleted " + x + " readings from " + id + " for [ " + startTime + "; " + endTime + " ]"
+                                "Deleted " + x + " readings from " + id + " for [ " + startTime + "; " + endTime + " ] (5 min)"
                         );
 
                         if(!active) break;
@@ -166,7 +166,7 @@ class Handler{
                         );
 
                         count.next(); //count() always returns a single row
-                        if(count.getInt(1) > 10){ //~80% of the total
+                        if(count.getInt(1) >= 11){ //~90% of the total
                             statement.executeUpdate(
                                     "INSERT INTO hour_temperature_analytics " +
                                             "SELECT DISTINCT " +
@@ -187,11 +187,11 @@ class Handler{
                             );
 
                             System.out.println(
-                                    "Inserted analytics from " + id + " for [ " + startTime + "; " + endTime + " ]"
+                                    "Inserted analytics from " + id + " for [ " + startTime + "; " + endTime + " ] (hour)"
                             );
                         } else{
                             System.out.println(
-                                    "Not enough data from " + id + " for [ " + startTime + "; " + endTime + " ]"
+                                    "Not enough data from " + id + " for [ " + startTime + "; " + endTime + " ] (hour)"
                             );
                         }
 
@@ -202,7 +202,7 @@ class Handler{
                         );
 
                         System.out.println(
-                                "Deleted " + x + " readings from " + id + " for [ " + startTime + "; " + endTime + " ]"
+                                "Deleted " + x + " readings from " + id + " for [ " + startTime + "; " + endTime + " ] (hour)"
                         );
 
                         if(!active) break;
@@ -214,6 +214,85 @@ class Handler{
                 if(!active) break;
 
                 //for each day
+                resultSet =
+                        st.executeQuery(
+                                "SELECT id,min(datetime),max(datetime) " +
+                                        "FROM hour_temperature_analytics " +
+                                        "GROUP BY id"
+                        );
+
+                while(resultSet.next()){
+                    String id = resultSet.getString(1);
+                    LocalDateTime start = LocalDateTime.parse(resultSet.getString(2), FORMATTER);
+                    LocalDateTime end = LocalDateTime.parse(resultSet.getString(3), FORMATTER);
+
+                    start = start.truncatedTo(ChronoUnit.DAYS);
+
+                    end = end.truncatedTo(ChronoUnit.DAYS).minusHours(1);
+
+                    Statement statement = connection.createStatement();
+                    statement.setQueryTimeout(5);
+
+                    while(start.isBefore(end)){
+                        String startTime = start.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+
+                        start = start.plusDays(1);
+
+                        String endTime = start.minusHours(1).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+
+                        ResultSet count = statement.executeQuery(
+                                "SELECT count(reference) FROM five_minutes_temperature_analytics " +
+                                        "WHERE id='" + id + "' AND " +
+                                        "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
+                        );
+
+                        count.next(); //count() always returns a single row
+                        if(count.getInt(1) >= 22){ //~90% of the total
+                            statement.executeUpdate(
+                                    "INSERT INTO day_temperature_analytics " +
+                                            "SELECT DISTINCT " +
+                                            "min(datetime) OVER (PARTITION BY id)," +
+                                            "id," +
+                                            "round(avg(average) OVER (PARTITION BY id), 1)," +
+                                            "round(avg(variance) OVER (PARTITION BY id), 1)," +
+                                            "round(avg(stdev) OVER (PARTITION BY id), 1)," +
+                                            "min(minimum) OVER (PARTITION BY id)," +
+                                            "round(avg(first_quartile) OVER (PARTITION BY id), 1)," +
+                                            "round(avg(median) OVER (PARTITION BY id), 1)," +
+                                            "round(avg(third_quartile) OVER (PARTITION BY id), 1)," +
+                                            "max(maximum) OVER (PARTITION BY id)" +
+                                            "FROM hour_temperature_analytics " +
+                                            "WHERE " +
+                                            "id = '" + id + "' AND " +
+                                            "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
+                            );
+
+                            System.out.println(
+                                    "Inserted analytics from " + id + " for [ " + startTime + "; " + endTime + " ] (day)"
+                            );
+                        } else{
+                            System.out.println(
+                                    "Not enough data from " + id + " for [ " + startTime + "; " + endTime + " ] (day)"
+                            );
+                        }
+
+                        int x = statement.executeUpdate(
+                                "DELETE FROM hour_temperature_analytics WHERE " +
+                                        "id = '" + id + "' AND " +
+                                        "datetime<='" + endTime + "'"
+                        );
+
+                        System.out.println(
+                                "Deleted " + x + " readings from " + id + " for [ " + startTime + "; " + endTime + " ] (day)"
+                        );
+
+                        if(!active) break;
+                    }
+
+                    if(!active) break;
+                }
+
+                if(!active) break;
             } catch(SQLException e){
                 e.printStackTrace();
             }
