@@ -45,11 +45,12 @@ class Handler{
                 System.out.println(e.getMessage());
             }
 
-            //for each 5 minutes
+
             try{
                 Statement st = connection.createStatement();
                 st.setQueryTimeout(1);
 
+                //for each 5 minutes
                 ResultSet resultSet =
                         st.executeQuery("SELECT id,min(datetime),max(datetime) FROM reading GROUP BY id");
 
@@ -75,32 +76,33 @@ class Handler{
                         String endTime = start.minusSeconds(5).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
                         ResultSet count = statement.executeQuery(
-                                "SELECT count(reference) FROM reading WHERE datetime " +
-                                        "BETWEEN '" + startTime + "' AND '" + endTime + "'"
+                                "SELECT count(reference) FROM reading " +
+                                        "WHERE id='" + id + "' AND " +
+                                        "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
                         );
 
                         count.next(); //count() always returns a single row
-                        if(count.getInt(1) > 54){ //90% of the total
+                        if(count.getInt(1) > 48){ //~80% of the total
                             statement.executeUpdate(
-                                    "INSERT INTO five_minutes_temperature_analytics\n" +
-                                            "SELECT DISTINCT\n" +
-                                            "    min(datetime) OVER (PARTITION BY id) AS datetime,\n" +
-                                            "    id,\n" +
-                                            "    round(avg(temperature) OVER (PARTITION BY id), 1) AS average,\n" +
-                                            "    round(var(temperature) OVER (PARTITION BY id), 1) AS variance,\n" +
-                                            "    round(stdev(temperature) OVER (PARTITION BY id), 1) AS stdev,\n" +
-                                            "    min(temperature) OVER (PARTITION BY id) AS min,\n" +
-                                            "    round(percentile_cont(0.25) WITHIN GROUP (ORDER BY temperature) " +
-                                            "       OVER (PARTITION BY id), 1) AS twentyfive,\n" +
-                                            "    round(percentile_cont(0.5) WITHIN GROUP (ORDER BY temperature) " +
-                                            "       OVER (PARTITION BY id), 1) AS fifty,\n" +
-                                            "    round(percentile_cont(0.75) WITHIN GROUP (ORDER BY temperature) " +
-                                            "       OVER (PARTITION BY id), 1) AS seventyfive,\n" +
-                                            "    max(temperature) OVER (PARTITION BY id) AS max\n" +
-                                            "FROM reading\n" +
+                                    "INSERT INTO five_minutes_temperature_analytics " +
+                                            "SELECT DISTINCT " +
+                                                "min(datetime) OVER (PARTITION BY id)," +
+                                                "id," +
+                                                "round(avg(temperature) OVER (PARTITION BY id), 1)," +
+                                                "round(var(temperature) OVER (PARTITION BY id), 1)," +
+                                                "round(stdev(temperature) OVER (PARTITION BY id), 1)," +
+                                                "min(temperature) OVER (PARTITION BY id)," +
+                                                "round(percentile_cont(0.25) WITHIN GROUP (ORDER BY temperature) " +
+                                                    "OVER (PARTITION BY id), 1)," +
+                                                "round(percentile_cont(0.5) WITHIN GROUP (ORDER BY temperature) " +
+                                                    "OVER (PARTITION BY id), 1)," +
+                                                "round(percentile_cont(0.75) WITHIN GROUP (ORDER BY temperature) " +
+                                                    "OVER (PARTITION BY id), 1)," +
+                                                "max(temperature) OVER (PARTITION BY id)" +
+                                            "FROM reading " +
                                             "WHERE " +
-                                            "   id = '" + id + "' AND " +
-                                            "   datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
+                                                "id = '" + id + "' AND " +
+                                                "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
                             );
 
                             System.out.println(
@@ -126,10 +128,92 @@ class Handler{
                     }
 
                     if(!active) break;
-
-                    //for each hour
                 }
 
+                if(!active) break;
+
+                //for each hour
+                resultSet =
+                        st.executeQuery(
+                                "SELECT id,min(datetime),max(datetime) " +
+                                        "FROM five_minutes_temperature_analytics " +
+                                        "GROUP BY id"
+                        );
+
+                while(resultSet.next()){
+                    String id = resultSet.getString(1);
+                    LocalDateTime start = LocalDateTime.parse(resultSet.getString(2), FORMATTER);
+                    LocalDateTime end = LocalDateTime.parse(resultSet.getString(3), FORMATTER);
+
+                    start = start.truncatedTo(ChronoUnit.HOURS);
+
+                    end = end.truncatedTo(ChronoUnit.HOURS).minusMinutes(5);
+
+                    Statement statement = connection.createStatement();
+                    statement.setQueryTimeout(5);
+
+                    while(start.isBefore(end)){
+                        String startTime = start.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+
+                        start = start.plusHours(1);
+
+                        String endTime = start.minusMinutes(5).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+
+                        ResultSet count = statement.executeQuery(
+                                "SELECT count(reference) FROM five_minutes_temperature_analytics " +
+                                        "WHERE id='" + id + "' AND " +
+                                        "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
+                        );
+
+                        count.next(); //count() always returns a single row
+                        if(count.getInt(1) > 10){ //~80% of the total
+                            statement.executeUpdate(
+                                    "INSERT INTO hour_temperature_analytics " +
+                                            "SELECT DISTINCT " +
+                                                "min(datetime) OVER (PARTITION BY id)," +
+                                                "id," +
+                                                "round(avg(temperature) OVER (PARTITION BY id), 1)," +
+                                                "round(avg(variance) OVER (PARTITION BY id), 1)," +
+                                                "round(avg(stdev) OVER (PARTITION BY id), 1)," +
+                                                "min(temperature) OVER (PARTITION BY id)," +
+                                                "round(avg(first_quartile) OVER (PARTITION BY id), 1)," +
+                                                "round(avg(median) OVER (PARTITION BY id), 1)," +
+                                                "round(avg(third_quartile) OVER (PARTITION BY id), 1)," +
+                                                "max(temperature) OVER (PARTITION BY id)" +
+                                            "FROM five_minutes_temperature_analytics" +
+                                            "WHERE " +
+                                                "id = '" + id + "' AND " +
+                                                "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
+                            );
+
+                            System.out.println(
+                                    "Inserted analytics from " + id + " for [ " + startTime + "; " + endTime + " ]"
+                            );
+                        } else{
+                            System.out.println(
+                                    "Not enough data from " + id + " for [ " + startTime + "; " + endTime + " ]"
+                            );
+                        }
+
+                        int x = statement.executeUpdate(
+                                "DELETE FROM five_minutes_temperature_analytics WHERE " +
+                                        "id = '" + id + "' AND " +
+                                        "datetime<='" + endTime + "'"
+                        );
+
+                        System.out.println(
+                                "Deleted " + x + " readings from " + id + " for [ " + startTime + "; " + endTime + " ]"
+                        );
+
+                        if(!active) break;
+                    }
+
+                    if(!active) break;
+                }
+
+                if(!active) break;
+
+                //for each day
             } catch(SQLException e){
                 e.printStackTrace();
             }
@@ -142,6 +226,7 @@ class Handler{
             }
         }
 
+        //disconnect
         if(connection == null) return;
 
         try {
