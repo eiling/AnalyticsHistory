@@ -172,15 +172,15 @@ class Handler{
                                             "SELECT DISTINCT " +
                                                 "min(datetime) OVER (PARTITION BY id)," +
                                                 "id," +
-                                                "round(avg(temperature) OVER (PARTITION BY id), 1)," +
+                                                "round(avg(average) OVER (PARTITION BY id), 1)," +
                                                 "round(avg(variance) OVER (PARTITION BY id), 1)," +
                                                 "round(avg(stdev) OVER (PARTITION BY id), 1)," +
-                                                "min(temperature) OVER (PARTITION BY id)," +
+                                                "min(minimum) OVER (PARTITION BY id)," +
                                                 "round(avg(first_quartile) OVER (PARTITION BY id), 1)," +
                                                 "round(avg(median) OVER (PARTITION BY id), 1)," +
                                                 "round(avg(third_quartile) OVER (PARTITION BY id), 1)," +
-                                                "max(temperature) OVER (PARTITION BY id)" +
-                                            "FROM five_minutes_temperature_analytics" +
+                                                "max(maximum) OVER (PARTITION BY id)" +
+                                            "FROM five_minutes_temperature_analytics " +
                                             "WHERE " +
                                                 "id = '" + id + "' AND " +
                                                 "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
