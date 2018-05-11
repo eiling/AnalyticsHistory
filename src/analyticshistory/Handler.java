@@ -61,19 +61,17 @@ class Handler{
 
                     start = start.truncatedTo(ChronoUnit.MINUTES).minusMinutes(start.getMinute() % 5);
 
-                    end = end.truncatedTo(ChronoUnit.MINUTES); //39
-                    end = end.minusMinutes(end.getMinute() % 5); //35
-                    end = end.minusSeconds(5); //34:55
+                    LocalDateTime step = start.plusMinutes(4).plusSeconds(55);
 
                     Statement statement = connection.createStatement();
                     statement.setQueryTimeout(5);
 
-                    while(start.isBefore(end)){
+                    while(!step.isAfter(end)){
                         String startTime = start.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-
                         start = start.plusMinutes(5);
 
-                        String endTime = start.minusSeconds(5).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                        String endTime = step.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                        step = step.plusMinutes(5);
 
                         ResultSet count = statement.executeQuery(
                                 "SELECT count(reference) FROM reading " +
@@ -86,11 +84,10 @@ class Handler{
                             statement.executeUpdate(
                                     "INSERT INTO five_minutes_temperature_analytics " +
                                             "SELECT DISTINCT " +
-                                                "min(datetime) OVER (PARTITION BY id)," +
+                                                "'" + startTime +"'" +
                                                 "id," +
                                                 "round(avg(temperature) OVER (PARTITION BY id), 1)," +
                                                 "round(var(temperature) OVER (PARTITION BY id), 1)," +
-                                                "round(stdev(temperature) OVER (PARTITION BY id), 1)," +
                                                 "min(temperature) OVER (PARTITION BY id)," +
                                                 "round(percentile_cont(0.25) WITHIN GROUP (ORDER BY temperature) " +
                                                     "OVER (PARTITION BY id), 1)," +
@@ -147,17 +144,17 @@ class Handler{
 
                     start = start.truncatedTo(ChronoUnit.HOURS);
 
-                    end = end.truncatedTo(ChronoUnit.HOURS);
+                    LocalDateTime step = start.plusMinutes(55);
 
                     Statement statement = connection.createStatement();
                     statement.setQueryTimeout(5);
 
-                    while(!start.isAfter(end)){
+                    while(!step.isAfter(end)){
                         String startTime = start.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-
                         start = start.plusHours(1);
 
-                        String endTime = start.minusMinutes(5).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                        String endTime = step.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                        step = step.plusHours(1);
 
                         ResultSet count = statement.executeQuery(
                                 "SELECT count(reference) FROM five_minutes_temperature_analytics " +
@@ -170,11 +167,10 @@ class Handler{
                             statement.executeUpdate(
                                     "INSERT INTO hour_temperature_analytics " +
                                             "SELECT DISTINCT " +
-                                                "min(datetime) OVER (PARTITION BY id)," +
+                                                "'" + startTime +"'" +
                                                 "id," +
                                                 "round(avg(average) OVER (PARTITION BY id), 1)," +
                                                 "round(avg(variance) OVER (PARTITION BY id), 1)," +
-                                                "round(avg(stdev) OVER (PARTITION BY id), 1)," +
                                                 "min(minimum) OVER (PARTITION BY id)," +
                                                 "round(avg(first_quartile) OVER (PARTITION BY id), 1)," +
                                                 "round(avg(median) OVER (PARTITION BY id), 1)," +
@@ -228,20 +224,20 @@ class Handler{
 
                     start = start.truncatedTo(ChronoUnit.DAYS);
 
-                    end = end.truncatedTo(ChronoUnit.DAYS);
+                    LocalDateTime step = start.plusHours(23);
 
                     Statement statement = connection.createStatement();
                     statement.setQueryTimeout(5);
 
-                    while(!start.isAfter(end)){
+                    while(!step.isAfter(end)){
                         String startTime = start.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-
                         start = start.plusDays(1);
 
-                        String endTime = start.minusHours(1).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                        String endTime = step.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                        step = step.plusDays(1);
 
                         ResultSet count = statement.executeQuery(
-                                "SELECT count(reference) FROM five_minutes_temperature_analytics " +
+                                "SELECT count(reference) FROM hour_temperature_analytics " +
                                         "WHERE id='" + id + "' AND " +
                                         "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
                         );
@@ -251,11 +247,10 @@ class Handler{
                             statement.executeUpdate(
                                     "INSERT INTO day_temperature_analytics " +
                                             "SELECT DISTINCT " +
-                                            "min(datetime) OVER (PARTITION BY id)," +
+                                            "'" + startTime +"'" +
                                             "id," +
                                             "round(avg(average) OVER (PARTITION BY id), 1)," +
                                             "round(avg(variance) OVER (PARTITION BY id), 1)," +
-                                            "round(avg(stdev) OVER (PARTITION BY id), 1)," +
                                             "min(minimum) OVER (PARTITION BY id)," +
                                             "round(avg(first_quartile) OVER (PARTITION BY id), 1)," +
                                             "round(avg(median) OVER (PARTITION BY id), 1)," +
