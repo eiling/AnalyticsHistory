@@ -147,12 +147,12 @@ class Handler{
 
                     start = start.truncatedTo(ChronoUnit.HOURS);
 
-                    end = end.truncatedTo(ChronoUnit.HOURS).minusMinutes(5);
+                    end = end.truncatedTo(ChronoUnit.HOURS);
 
                     Statement statement = connection.createStatement();
                     statement.setQueryTimeout(5);
 
-                    while(start.isBefore(end)){
+                    while(!start.isAfter(end)){
                         String startTime = start.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
                         start = start.plusHours(1);
@@ -228,12 +228,12 @@ class Handler{
 
                     start = start.truncatedTo(ChronoUnit.DAYS);
 
-                    end = end.truncatedTo(ChronoUnit.DAYS).minusHours(1);
+                    end = end.truncatedTo(ChronoUnit.DAYS);
 
                     Statement statement = connection.createStatement();
                     statement.setQueryTimeout(5);
 
-                    while(start.isBefore(end)){
+                    while(!start.isAfter(end)){
                         String startTime = start.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
                         start = start.plusDays(1);
