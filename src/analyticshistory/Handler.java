@@ -6,6 +6,10 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 
 class Handler{
+    private static final byte FIVE_MINUTES = 1;
+    private static final byte HOUR = 2;
+    private static final byte DAY = 3;
+
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd' 'HH:mm:ss.S");
 
     private boolean active;
@@ -48,7 +52,7 @@ class Handler{
 
             try{
                 Statement st = connection.createStatement();
-                st.setQueryTimeout(1);
+                st.setQueryTimeout(5);
 
                 //for each 5 minutes
                 ResultSet resultSet =
@@ -61,7 +65,7 @@ class Handler{
 
                     start = start.truncatedTo(ChronoUnit.MINUTES).minusMinutes(start.getMinute() % 5);
 
-                    end = end.minusMinutes(5); //leave 5 min worth of 5 sec data
+                    //end = end.minusMinutes(5); //leave 5 min worth of 5 sec data
 
                     LocalDateTime step = start.plusMinutes(4).plusSeconds(55);
 
@@ -84,9 +88,9 @@ class Handler{
                         count.next(); //count() always returns a single row
                         if(count.getInt(1) >= 54){ //~90% of the total
                             statement.executeUpdate(
-                                    "INSERT INTO five_minutes_temperature_analytics " +
+                                    "INSERT INTO analytics " +
                                             "SELECT DISTINCT " +
-                                                "'" + startTime +"'" +
+                                                "'" + startTime +"'," +
                                                 "id," +
                                                 "round(avg(temperature) OVER (PARTITION BY id), 1)," +
                                                 "round(var(temperature) OVER (PARTITION BY id), 1)," +
@@ -97,7 +101,8 @@ class Handler{
                                                     "OVER (PARTITION BY id), 1)," +
                                                 "round(percentile_cont(0.75) WITHIN GROUP (ORDER BY temperature) " +
                                                     "OVER (PARTITION BY id), 1)," +
-                                                "max(temperature) OVER (PARTITION BY id)" +
+                                                "max(temperature) OVER (PARTITION BY id)," +
+                                                 FIVE_MINUTES + " " +
                                             "FROM reading " +
                                             "WHERE " +
                                                 "id = '" + id + "' AND " +
@@ -135,7 +140,8 @@ class Handler{
                 resultSet =
                         st.executeQuery(
                                 "SELECT id,min(datetime),max(datetime) " +
-                                        "FROM five_minutes_temperature_analytics " +
+                                        "FROM analytics " +
+                                        "WHERE type=" + FIVE_MINUTES + " " +
                                         "GROUP BY id"
                         );
 
@@ -161,17 +167,18 @@ class Handler{
                         step = step.plusHours(1);
 
                         ResultSet count = statement.executeQuery(
-                                "SELECT count(reference) FROM five_minutes_temperature_analytics " +
+                                "SELECT count(reference) FROM analytics " +
                                         "WHERE id='" + id + "' AND " +
+                                        "type=" + FIVE_MINUTES + " AND " +
                                         "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
                         );
 
                         count.next(); //count() always returns a single row
                         if(count.getInt(1) >= 11){ //~90% of the total
                             statement.executeUpdate(
-                                    "INSERT INTO hour_temperature_analytics " +
+                                    "INSERT INTO analytics " +
                                             "SELECT DISTINCT " +
-                                                "'" + startTime +"'" +
+                                                "'" + startTime +"'," +
                                                 "id," +
                                                 "round(avg(average) OVER (PARTITION BY id), 1)," +
                                                 "round(avg(variance) OVER (PARTITION BY id), 1)," +
@@ -179,10 +186,12 @@ class Handler{
                                                 "round(avg(first_quartile) OVER (PARTITION BY id), 1)," +
                                                 "round(avg(median) OVER (PARTITION BY id), 1)," +
                                                 "round(avg(third_quartile) OVER (PARTITION BY id), 1)," +
-                                                "max(maximum) OVER (PARTITION BY id)" +
-                                            "FROM five_minutes_temperature_analytics " +
+                                                "max(maximum) OVER (PARTITION BY id)," +
+                                                 HOUR + " " +
+                                            "FROM analytics " +
                                             "WHERE " +
                                                 "id = '" + id + "' AND " +
+                                                "type=" + FIVE_MINUTES + " AND " +
                                                 "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
                             );
 
@@ -196,8 +205,9 @@ class Handler{
                         }
 
                         int x = statement.executeUpdate(
-                                "DELETE FROM five_minutes_temperature_analytics WHERE " +
+                                "DELETE FROM analytics WHERE " +
                                         "id = '" + id + "' AND " +
+                                        "type=" + FIVE_MINUTES + " AND " +
                                         "datetime<='" + endTime + "'"
                         );
 
@@ -217,7 +227,8 @@ class Handler{
                 resultSet =
                         st.executeQuery(
                                 "SELECT id,min(datetime),max(datetime) " +
-                                        "FROM hour_temperature_analytics " +
+                                        "FROM analytics " +
+                                        "WHERE type=" + HOUR + " " +
                                         "GROUP BY id"
                         );
 
@@ -243,17 +254,18 @@ class Handler{
                         step = step.plusDays(1);
 
                         ResultSet count = statement.executeQuery(
-                                "SELECT count(reference) FROM hour_temperature_analytics " +
+                                "SELECT count(reference) FROM analytics " +
                                         "WHERE id='" + id + "' AND " +
+                                        "type=" + HOUR + " AND " +
                                         "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
                         );
 
                         count.next(); //count() always returns a single row
                         if(count.getInt(1) >= 22){ //~90% of the total
                             statement.executeUpdate(
-                                    "INSERT INTO day_temperature_analytics " +
+                                    "INSERT INTO analytics " +
                                             "SELECT DISTINCT " +
-                                            "'" + startTime +"'" +
+                                            "'" + startTime +"'," +
                                             "id," +
                                             "round(avg(average) OVER (PARTITION BY id), 1)," +
                                             "round(avg(variance) OVER (PARTITION BY id), 1)," +
@@ -261,10 +273,12 @@ class Handler{
                                             "round(avg(first_quartile) OVER (PARTITION BY id), 1)," +
                                             "round(avg(median) OVER (PARTITION BY id), 1)," +
                                             "round(avg(third_quartile) OVER (PARTITION BY id), 1)," +
-                                            "max(maximum) OVER (PARTITION BY id)" +
-                                            "FROM hour_temperature_analytics " +
+                                            "max(maximum) OVER (PARTITION BY id)," +
+                                             DAY + " " +
+                                            "FROM analytics " +
                                             "WHERE " +
                                             "id = '" + id + "' AND " +
+                                            "type=" + HOUR + " AND " +
                                             "datetime BETWEEN '" + startTime + "' AND '" + endTime + "'"
                             );
 
@@ -278,8 +292,9 @@ class Handler{
                         }
 
                         int x = statement.executeUpdate(
-                                "DELETE FROM hour_temperature_analytics WHERE " +
+                                "DELETE FROM analytics WHERE " +
                                         "id = '" + id + "' AND " +
+                                        "type=" + HOUR + " AND " +
                                         "datetime<='" + endTime + "'"
                         );
 
