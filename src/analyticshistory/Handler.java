@@ -65,7 +65,7 @@ class Handler{
 
                     start = start.truncatedTo(ChronoUnit.MINUTES).minusMinutes(start.getMinute() % 5);
 
-                    //end = end.minusMinutes(5); //leave 5 min worth of 5 sec data
+                    end = end.minusMinutes(5); //leave 5 min worth of 5 sec data
 
                     LocalDateTime step = start.plusMinutes(4).plusSeconds(55);
 
