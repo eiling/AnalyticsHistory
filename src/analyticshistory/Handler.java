@@ -65,8 +65,6 @@ class Handler{
 
                     start = start.truncatedTo(ChronoUnit.MINUTES).minusMinutes(start.getMinute() % 5);
 
-                    end = end.minusMinutes(5); //leave 5 min worth of 5 sec data
-
                     LocalDateTime step = start.plusMinutes(4).plusSeconds(55);
 
                     Statement statement = connection.createStatement();
@@ -152,8 +150,6 @@ class Handler{
 
                     start = start.truncatedTo(ChronoUnit.HOURS);
 
-                    end = end.minusHours(1); //leave 1 hour worth of 5 min data
-
                     LocalDateTime step = start.plusMinutes(55);
 
                     Statement statement = connection.createStatement();
@@ -238,8 +234,6 @@ class Handler{
                     LocalDateTime end = LocalDateTime.parse(resultSet.getString(3), FORMATTER);
 
                     start = start.truncatedTo(ChronoUnit.DAYS);
-
-                    end = end.minusDays(1); //leave 1 day worth of hour data
 
                     LocalDateTime step = start.plusHours(23);
 
